@@ -1,4 +1,5 @@
 #include "path_utils.h"
+#include "err.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -51,6 +52,7 @@ char* make_path_to_parent(const char* path, char* component)
 
     size_t subpath_len = p - path + 1; // Include '/' at p.
     char* result = malloc(subpath_len + 1); // Include terminating null character.
+    CHECK(result);
     strncpy(result, path, subpath_len);
     result[subpath_len] = '\0';
 
@@ -98,12 +100,14 @@ char* make_map_contents_string(HashMap* map)
     if (!result_size) {
         // Note we can't just return "", as it can't be free'd.
         char* result = malloc(1);
+        CHECK(result);
         free(keys);
         *result = '\0';
         return result;
     }
 
     char* result = malloc(result_size);
+    CHECK(result);
     char* position = result;
     for (const char** key = keys; *key; ++key) {
         size_t keylen = strlen(*key);
@@ -119,6 +123,8 @@ char* make_map_contents_string(HashMap* map)
     return result;
 }
 
+/* Author of functions below: Mikołaj Szkaradek */
+
 char** make_path_folders_array(const char* path, size_t *size) {
     size_t path_folders_count = 0;
     if (strlen(path) == 1) return NULL;
@@ -132,10 +138,12 @@ char** make_path_folders_array(const char* path, size_t *size) {
     char component[MAX_FOLDER_NAME_LENGTH + 1];
     const char* subpath = path;
     char** path_folders = malloc((path_folders_count + 1) * sizeof(char*));
+    CHECK(path_folders);
 
     int i = 0;
     while ((subpath = split_path(subpath, component))) {
         path_folders[i] = malloc((MAX_FOLDER_NAME_LENGTH + 1) * sizeof (char));
+        CHECK(path_folders[i]);
         strcpy(path_folders[i], component);
         i++;
     }
@@ -148,4 +156,44 @@ void free_array_of_strings(char** arr, size_t size) {
         if (arr[i]) free(arr[i]);
     }
     if (arr) free(arr);
+}
+
+bool moving_to_subtree(const char* source, const char* target) {
+    if (strcmp(source, target) == 0) return 0;
+    size_t s_len = strlen(source);
+    char* target_helper = malloc(s_len + 1);
+    CHECK(target_helper);
+    strncpy(target_helper, target, s_len);
+    target_helper[s_len] = '\0';
+    bool retval = 0;
+    if (strcmp(source, target_helper) == 0) retval = 1;
+    free (target_helper);
+    return retval;
+}
+
+static size_t min(size_t a, size_t b) {
+    if (a <= b) return a;
+    return b;
+}
+
+char* path_to_lca(const char* source, const char* target) {
+    size_t source_folders_count = 0;
+    size_t target_folders_count = 0;
+    char** source_folders = make_path_folders_array(source, &source_folders_count);
+    char** target_folders = make_path_folders_array(target, &target_folders_count);
+
+    size_t i = 0;
+    size_t size = min(source_folders_count, target_folders_count);
+    char* result = malloc ((MAX_PATH_LENGTH + 1) * sizeof (char));
+    CHECK(result);
+    strcpy(result, "/");
+    while (i < size && (strcmp(source_folders[i], target_folders[i])) == 0) {
+        strcat(result, source_folders[i]);
+        strcat(result, "/");
+        i++;
+    }
+
+    free_array_of_strings(source_folders, source_folders_count);
+    free_array_of_strings(target_folders, target_folders_count);
+    return result;
 }

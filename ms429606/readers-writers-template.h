@@ -10,16 +10,16 @@ struct readwrite {
     int change;
 };
 
-void init(struct readwrite *rw);
+void rw_init(struct readwrite* rw);
 
-void destroy(struct readwrite *rw);
+void rw_destroy(struct readwrite* rw);
 
-void start_reading(struct readwrite *rw);
+void rw_reader_preliminary_protocol(struct readwrite* rw);
 
-void finish_reading(struct readwrite *rw);
+void rw_reader_final_protocol(struct readwrite* rw);
 
-void start_writing(struct readwrite *rw);
+void rw_writer_preliminary_protocol(struct readwrite* rw);
 
-void finish_writing(struct readwrite *rw);
+void rw_writer_final_protocol(struct readwrite* rw);
 
 

@@ -21,7 +21,7 @@ void print_map(HashMap* map) {
     printf("\n");
 }
 
-static char* path_to_lca(const char* source, const char* target) {
+/*static char* path_to_lca(const char* source, const char* target) {
     size_t source_folders_count = 0;
     size_t target_folders_count = 0;
     char** source_folders = make_path_folders_array(source, &source_folders_count);
@@ -40,7 +40,7 @@ static char* path_to_lca(const char* source, const char* target) {
     free_array_of_strings(source_folders, source_folders_count);
     free_array_of_strings(target_folders, target_folders_count);
     return result;
-}
+}*/
 
 int main(void) {
     /*HashMap* map = hmap_new();
@@ -53,7 +53,7 @@ int main(void) {
     print_map(map);
 
     hmap_free(map);*/
-    /*Tree *tree = tree_new();
+    Tree *tree = tree_new();
     char *list_content = tree_list(tree, "/");
     assert(strcmp(list_content, "") == 0);
     free(list_content);
@@ -71,14 +71,14 @@ int main(void) {
     list_content = tree_list(tree, "/b/");
     assert(strcmp(list_content, "c") == 0);
     free(list_content);
-    tree_free(tree);*/
+    tree_free(tree);
 
 //    size_t size;
-    const char* so = "/a/b/c/";
+    /*const char* so = "/a/b/c/";
     const char* ta = "/ffas/";
     char* a = path_to_lca(so, ta);
     printf("%s", a);
-    free(a);
+    free(a);*/
 
     return 0;
 }

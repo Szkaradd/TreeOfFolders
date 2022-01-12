@@ -56,4 +56,13 @@ char* make_map_contents_string(HashMap* map);
 // The caller should free the result.
 char** make_path_folders_array(const char* path, size_t *size);
 
+// Free array of strings and its contents.
 void free_array_of_strings(char** arr, size_t size);
+
+// Function checks if source is a prefix of target.
+// Returns false if paths are equal.
+bool moving_to_subtree(const char* source, const char* target);
+
+// Return string containing a path to last common ancestor of source and target.
+// We assume that both paths are valid.
+char* path_to_lca(const char* source, const char* target);

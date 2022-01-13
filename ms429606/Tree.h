@@ -7,7 +7,7 @@
  * jedynie operacje hmap_get, która może być wykonywana współbieżnie z
  * innymi operacjami hmap_get. Dlatego uznaję w rozwiązaniu, że tree_list wpuszcza,
  * do każdej biblioteki na scieżce po jednym czytelniku. Uznaję,
- * że hmap_get to operacja, czytania. Kiedy skończy się list, wypuszczam, idąc w górę
+ * że hmap_get to operacja czytania. Kiedy skończy się list, wypuszczam, idąc w górę
  * drzewa wpuszczonych wcześniej czytelników. Każdą z operacji hmap_insert,
  * hmap_remove, hmap_free uznaję za pisanie.
  * Kiedy wykonywana jest jedna z operacji tree_move lub tree_remove musimy dostać

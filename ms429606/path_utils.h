@@ -10,7 +10,7 @@
 
 // Return whether a path is valid.
 // Valid paths are '/'-separated sequences of folder names, always starting and ending with '/'.
-// Valid paths have length at most MAX_PATH_LENGTH (and at least 1). Valid folder names are are
+// Valid paths have length at most MAX_PATH_LENGTH (and at least 1). Valid folder names are
 // sequences of 'a'-'z' ASCII characters, of length from 1 to MAX_FOLDER_NAME_LENGTH.
 bool is_path_valid(const char* path);
 
@@ -20,7 +20,7 @@ bool is_path_valid(const char* path);
 // - `component`: if not NULL, should be a buffer of size at least MAX_FOLDER_NAME_LENGTH + 1.
 //    Then the first component will be copied there (without any '/' characters).
 // If path is "/", returns NULL and leaves `component` unchanged.
-// Otherwise the returns a pointer into `path`, representing a valid subpath.
+// Otherwise, the returns a pointer into `path`, representing a valid subpath.
 //
 // This can be used to iterate over all components of a path:
 //     char component[MAX_FOLDER_NAME_LENGTH + 1];
@@ -36,7 +36,7 @@ const char* split_path(const char* path, char* component);
 // - `component`: if not NULL, should be a buffer of size at least MAX_FOLDER_NAME_LENGTH + 1.
 //    Then the last component will be copied there (without any '/' characters).
 // If path is "/", returns NULL and leaves `component` unchanged.
-// Otherwise the result is a valid path.
+// Otherwise, the result is a valid path.
 char* make_path_to_parent(const char* path, char* component);
 
 // Return an array containing all keys, lexicographically sorted.

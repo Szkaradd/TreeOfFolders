@@ -26,6 +26,28 @@ typedef struct PairTreeBool {
     bool writing;
 } PairTB;
 
+// Removes writer from tree->library and changes pointer to parent.
+static void release_writer(Tree** tree) {
+    rw_writer_final_protocol((*tree)->library);
+    *tree = (*tree)->parent;
+}
+
+// Function removes one reader from each library on the path.
+// If writing is true function removes writer instead of reader
+// from the first folder of the path.
+// It starts in the given node and goes up until it reaches
+// NULL which is the parent of root.
+static void release_readers_and_writer(PairTB first_to_release) {
+    if (!first_to_release.tree) return;
+    Tree* t = first_to_release.tree;
+    if (first_to_release.writing)
+        release_writer(&t);
+    while (t) {
+        rw_reader_final_protocol(t->library);
+        t = t->parent;
+    }
+}
+
 // Function places one reader in each library on the path.
 // If writing is true function places writer instead of reader
 // in the last folder of the path.
@@ -43,13 +65,15 @@ static PairTB let_readers_and_writer_in(Tree* tree, const char* path, bool writi
     const char* subpath = path;
 
     Tree *current = tree;
-    HashMap* next = tree->subTrees;
     while ((subpath = split_path(subpath, component))) {
         result.tree = current;
         rw_reader_preliminary_protocol(current->library);
-        current = (Tree*)hmap_get(next, component);
-        if (!current) return result;
-        next = current->subTrees;
+        current = (Tree*)hmap_get(current->subTrees, component);
+        if (!current) {
+            release_readers_and_writer(result);
+            result.tree = NULL;
+            return result;
+        }
     }
 
     result.tree = current;
@@ -59,38 +83,18 @@ static PairTB let_readers_and_writer_in(Tree* tree, const char* path, bool writi
     return result;
 }
 
-// Function removes one reader from each library on the path.
-// If writing is true function removes writer instead of reader
-// from the first folder of the path.
-// It starts in the given node and goes up until it reaches
-// NULL which is the parent of root.
-static void let_readers_and_writer_out(PairTB last_tree) {
-    if (!last_tree.tree) return;
-    Tree* t = last_tree.tree;
-    if (last_tree.writing) {
-        rw_writer_final_protocol(t->library);
-        t = t->parent;
-    }
-    while (t) {
-        rw_reader_final_protocol(t->library);
-        t = t->parent;
-    }
-}
-
 // Return a pointer to tree which represents the folder that
 // the path leads to.
-// We assume that the path is valid and exists.
-static Tree* get_folder_contents(Tree* tree, const char* path) {
+// We assume that the path is valid.
+static Tree* find_path_subtree(Tree* tree, const char* path) {
     if (!tree) return NULL;
     Tree* current = tree;
-    HashMap* next = tree->subTrees;
     char component[MAX_FOLDER_NAME_LENGTH + 1];
     const char* subpath = path;
 
     while ((subpath = split_path(subpath, component))) {
-        current = (Tree*)hmap_get(next, component);
+        current = (Tree*)hmap_get(current->subTrees, component);
         if (!current) return NULL;
-        next = current->subTrees;
     }
 
     return current;
@@ -98,10 +102,10 @@ static Tree* get_folder_contents(Tree* tree, const char* path) {
 
 Tree* tree_new() {
     Tree* tree = malloc(sizeof(Tree));
-    CHECK(tree);
+    CHECK_PTR(tree);
     tree->parent = NULL;
     tree->library = malloc(sizeof(struct readwrite));
-    CHECK(tree->library);
+    CHECK_PTR(tree->library);
     rw_init(tree->library);
     tree->subTrees = hmap_new();
     return tree;
@@ -124,18 +128,19 @@ void tree_free(Tree* tree) {
 
 char* tree_list(Tree* tree, const char* path) {
     if (!is_path_valid(path)) return NULL;
-    PairTB last_tree = let_readers_and_writer_in(tree, path, false);
+    PairTB first_to_release = let_readers_and_writer_in(tree, path, false);
+    if (!first_to_release.tree) return NULL;
 
-    Tree* folder = get_folder_contents(tree, path);
+    Tree* folder = find_path_subtree(tree, path);
 
     if (!folder) {
-        let_readers_and_writer_out(last_tree);
+        release_readers_and_writer(first_to_release);
         return NULL;
     }
-    char* res = make_map_contents_string(folder->subTrees);
+    char* contents_string = make_map_contents_string(folder->subTrees);
 
-    let_readers_and_writer_out(last_tree);
-    return res;
+    release_readers_and_writer(first_to_release);
+    return contents_string;
 }
 
 int tree_create(Tree* tree, const char* path) {
@@ -144,24 +149,28 @@ int tree_create(Tree* tree, const char* path) {
 
     char to_insert[MAX_FOLDER_NAME_LENGTH + 1];
     char* subpath = make_path_to_parent(path, to_insert);
-    PairTB last_tree = let_readers_and_writer_in(tree, subpath, true);
+    PairTB first_to_release = let_readers_and_writer_in(tree, subpath, true);
+    if (!first_to_release.tree) {
+        free(subpath);
+        return ENOENT;
+    }
 
-    Tree* folder_parent = get_folder_contents(tree, subpath);
+    Tree* folder_parent = find_path_subtree(tree, subpath);
     free(subpath);
 
     if (!folder_parent) {
-        let_readers_and_writer_out(last_tree);
+        release_readers_and_writer(first_to_release);
         return ENOENT;
     }
     if (hmap_get(folder_parent->subTrees, to_insert)) {
-        let_readers_and_writer_out(last_tree);
+        release_readers_and_writer(first_to_release);
         return EEXIST;
     }
 
     Tree* new_tree = tree_new();
     new_tree->parent = folder_parent;
     hmap_insert(folder_parent->subTrees, to_insert, new_tree);
-    let_readers_and_writer_out(last_tree);
+    release_readers_and_writer(first_to_release);
 
     return 0;
 }
@@ -172,23 +181,28 @@ int tree_remove(Tree* tree, const char* path) {
 
     char component[MAX_FOLDER_NAME_LENGTH + 1];
     char* subpath = make_path_to_parent(path, component);
-    PairTB last_tree = let_readers_and_writer_in(tree, subpath, true);
-    Tree* folder_parent = get_folder_contents(tree, subpath);
+    PairTB first_to_release = let_readers_and_writer_in(tree, subpath, true);
+    if (!first_to_release.tree) {
+        free(subpath);
+        return ENOENT;
+    }
+
+    Tree* folder_parent = find_path_subtree(tree, subpath);
     free(subpath);
 
     if (!folder_parent || !hmap_get(folder_parent->subTrees, component)) {
-        let_readers_and_writer_out(last_tree);
+        release_readers_and_writer(first_to_release);
         return ENOENT;
     }
 
     Tree* to_remove = (Tree*)hmap_get(folder_parent->subTrees, component);
     if (hmap_size(to_remove->subTrees) != 0) {
-        let_readers_and_writer_out(last_tree);
+        release_readers_and_writer(first_to_release);
         return ENOTEMPTY;
     }
     tree_free(to_remove);
     hmap_remove(folder_parent->subTrees, component);
-    let_readers_and_writer_out(last_tree);
+    release_readers_and_writer(first_to_release);
 
     return 0;
 }
@@ -200,16 +214,17 @@ int tree_move(Tree* tree, const char* source, const char* target) {
     if (moving_to_subtree(source, target)) return NEW_ERROR;
 
     char* lca = path_to_lca(source, target);
-    PairTB last_tree = let_readers_and_writer_in(tree, lca, true);
+    PairTB first_to_release = let_readers_and_writer_in(tree, lca, true);
     free(lca);
+    if (!first_to_release.tree) return ENOENT;
 
     char source_name[MAX_FOLDER_NAME_LENGTH + 1];
     char* source_parent = make_path_to_parent(source, source_name);
-    Tree* source_parent_tree = get_folder_contents(tree, source_parent);
+    Tree* source_parent_tree = find_path_subtree(tree, source_parent);
     free(source_parent);
 
     if (!source_parent_tree || !hmap_get(source_parent_tree->subTrees, source_name)) {
-        let_readers_and_writer_out(last_tree);
+        release_readers_and_writer(first_to_release);
         return ENOENT;
     }
 
@@ -217,26 +232,26 @@ int tree_move(Tree* tree, const char* source, const char* target) {
 
     char target_name[MAX_FOLDER_NAME_LENGTH + 1];
     char* target_parent = make_path_to_parent(target, target_name);
-    Tree* target_tree = get_folder_contents(tree, target_parent);
+    Tree* target_tree = find_path_subtree(tree, target_parent);
     free(target_parent);
 
     if (!target_tree) {
-        let_readers_and_writer_out(last_tree);
+        release_readers_and_writer(first_to_release);
         return ENOENT;
     }
     if (strcmp(source, target) == 0) {
-        let_readers_and_writer_out(last_tree);
+        release_readers_and_writer(first_to_release);
         return 0;
     }
     if (hmap_get(target_tree->subTrees, target_name)) {
-        let_readers_and_writer_out(last_tree);
+        release_readers_and_writer(first_to_release);
         return EEXIST;
     }
 
     hmap_remove(source_parent_tree->subTrees, source_name);
     to_move->parent = target_tree;
     hmap_insert(target_tree->subTrees, target_name, to_move);
-    let_readers_and_writer_out(last_tree);
+    release_readers_and_writer(first_to_release);
 
     return 0;
 }
